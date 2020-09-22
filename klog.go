@@ -510,6 +510,9 @@ type loggingT struct {
 
 	// If true, messages will not be propagated to lower severity log levels
 	oneOutput bool
+
+	// If non-nil, this is used instead of the traditional glog/klog header formatting
+	formatter Formatter
 }
 
 // buffer holds a byte Buffer for reuse. The zero value is ready for use.
@@ -610,7 +613,6 @@ func (l *loggingT) header(s severity, depth int) (*buffer, string, int) {
 
 // formatHeader formats a log header using the provided file name and line number.
 func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
-	now := timeNow()
 	if line < 0 {
 		line = 0 // not a real line number, but acceptable to someDigits
 	}
@@ -622,8 +624,14 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 		return buf
 	}
 
+	if l.formatter != nil {
+		l.formatter.FormatHeader(severityName[s], file, line, &buf.Buffer)
+		return buf
+	}
+
 	// Avoid Fprintf, for speed. The format is so simple that we can do it quickly by hand.
 	// It's worth about 3X. Fprintf is hard.
+	now := timeNow()
 	_, month, day := now.Date()
 	hour, minute, second := now.Clock()
 	// Lmmdd hh:mm:ss.uuuuuu threadid file:line]

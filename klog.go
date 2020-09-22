@@ -625,7 +625,7 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 	}
 
 	if l.formatter != nil {
-		l.formatter.FormatHeader(severityName[s], file, line, &buf.Buffer)
+		l.formatter.FormatHeader(severityChar[s], file, line, &buf.Buffer)
 		return buf
 	}
 

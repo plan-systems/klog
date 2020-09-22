@@ -27,14 +27,14 @@ type Formatter interface {
 
 	// FormatHeader writes a formatted header to ioBuf.
 	// This function is presumed to be THREADSAFE.
-	FormatHeader(inSeverity string, inFile string, inLine int, ioBuf *bytes.Buffer)
+	FormatHeader(severityChar byte, fileName string, lineNum int, ioBuf *bytes.Buffer)
 }
 
 // SetFormatter sets the global/default formatter.
 //
 // By default, the formatter is set to nil, meaning the historcal glog/klog formatter is used.
-func SetFormatter(inFormatter Formatter) {
-	logging.formatter = inFormatter
+func SetFormatter(formatter Formatter) {
+	logging.formatter = formatter
 }
 
 // FmtConstWidth is a basic formatter that makes reasonable attempts to make the header length a constant width,
@@ -50,26 +50,20 @@ type FmtConstWidth struct {
 }
 
 // FormatHeader -- see interface Formatter
-func (f *FmtConstWidth) FormatHeader(inSeverity string, inFile string, inLine int, buf *bytes.Buffer) {
-	var (
+func (f *FmtConstWidth) FormatHeader(sevChar byte, file string, line int, buf *bytes.Buffer) {
+    var (
 		tmp [64]byte
 	)
-
-	sevChar := inSeverity[0]
 	sz := 0
+
+	// Add a severity char that we'll remove before displaying.
+	tmp[sz] = sevChar
+	sz++
 
 	usingColor := f.UseColor
 	if usingColor {
-		var color byte
-		switch sevChar {
-		case 'W':
-			color = yellow
-		case 'E', 'F':
-			color = lightRed
-		default:
-			color = dim
-		}
-		sz += AppendColorCode(color, tmp[sz:])
+		tmp[sz] = '['
+		sz++
 	}
 
 	tmp[sz] = sevChar
@@ -82,31 +76,53 @@ func (f *FmtConstWidth) FormatHeader(inSeverity string, inFile string, inLine in
 	sz = 0
 
 	if segSz := f.FileNameCharWidth; segSz > 0 {
-		strLen := len(inFile)
+		strLen := len(file)
 		padLen := segSz - strLen
 		if padLen < 0 {
-			buf.Write([]byte(inFile))
+			buf.Write([]byte(file))
 		} else {
 			for ; sz < padLen; sz++ {
 				tmp[sz] = ' '
 			}
 			for ; sz < segSz; sz++ {
-				tmp[sz] = inFile[sz-padLen]
+				tmp[sz] = file[sz-padLen]
 			}
 		}
 		tmp[sz] = ':'
 		sz++
-		if inLine < 10000 {
-			sz += AppendNDigits(4, inLine, tmp[sz:], '0')
+		if line < 10000 {
+			sz += AppendNDigits(4, line, tmp[sz:], '0')
 		} else {
-			sz += AppendDigits(inLine, tmp[sz:])
+			sz += AppendDigits(line, tmp[sz:])
 		}
 	}
-	tmp[sz] = ' '
-	sz++
 
 	if usingColor {
-		sz += AppendColorCode(byte(noColor), tmp[sz:])
+		tmp[sz] = ']'
+		sz++
+		switch sevChar {
+		case 'W':
+			copy(tmp[sz:], []byte("(fg:yellow)"))
+			sz += 11
+		case 'E', 'F':
+			copy(tmp[sz:], []byte("(fg:red)"))
+			sz += 8
+		case 'S':
+			copy(tmp[sz:], []byte("(fg:green)"))
+			sz += 10
+		case 'D':
+			copy(tmp[sz:], []byte("(fg:magenta)"))
+			sz += 12
+		default:
+			copy(tmp[sz:], []byte("(fg:clear)"))
+			sz += 10
+		}
+		tmp[sz] = ' '
+		sz++
+		tmp[sz] = '|'
+		sz++
+		tmp[sz] = ' '
+		sz++
 	}
 
 	buf.Write(tmp[:sz])

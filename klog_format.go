@@ -56,14 +56,18 @@ func (f *FmtConstWidth) FormatHeader(sevChar byte, file string, line int, buf *b
 	)
 	sz := 0
 
-	// Add a severity char that we'll remove before displaying.
-	tmp[sz] = sevChar
-	sz++
-
 	usingColor := f.UseColor
 	if usingColor {
-		tmp[sz] = '['
-		sz++
+        var fg byte
+		switch sevChar {
+        case 'W':
+            fg = yellow
+		case 'E', 'F':
+            fg = lightRed
+		default:
+            fg = dim
+		}
+        sz += AppendColorCode(fg, tmp[sz:])
 	}
 
 	tmp[sz] = sevChar
@@ -96,34 +100,15 @@ func (f *FmtConstWidth) FormatHeader(sevChar byte, file string, line int, buf *b
 			sz += AppendDigits(line, tmp[sz:])
 		}
 	}
+    tmp[sz] = '|'
+    sz++
+
 
 	if usingColor {
-		tmp[sz] = ']'
-		sz++
-		switch sevChar {
-		case 'W':
-			copy(tmp[sz:], []byte("(fg:yellow)"))
-			sz += 11
-		case 'E', 'F':
-			copy(tmp[sz:], []byte("(fg:red)"))
-			sz += 8
-		case 'S':
-			copy(tmp[sz:], []byte("(fg:green)"))
-			sz += 10
-		case 'D':
-			copy(tmp[sz:], []byte("(fg:magenta)"))
-			sz += 12
-		default:
-			copy(tmp[sz:], []byte("(fg:clear)"))
-			sz += 10
-		}
-		tmp[sz] = ' '
-		sz++
-		tmp[sz] = '|'
-		sz++
-		tmp[sz] = ' '
-		sz++
-	}
+		sz += AppendColorCode(resetColor, tmp[sz:])
+    }
+    tmp[sz] = ' '
+    sz++
 
 	buf.Write(tmp[:sz])
 }
@@ -198,36 +183,41 @@ func AppendNDigits(inNumDigits int, inValue int, buf []byte, inPad byte) int {
 	return inNumDigits
 }
 
+
+
 // AppendColorCode appends the console color code to the given slice,
 // returning how many bytes were appended.
-func AppendColorCode(inColorCode byte, buf []byte) int {
+func AppendColorCode(code byte, buf []byte) int {
 	buf[0] = '\x1b'
 	buf[1] = '['
 	sz := 2
 
-	code := inColorCode
-	if code >= 100 {
-		digit := '0' + code/100
-		buf[sz] = digit
-		sz++
-		code -= digit * 100
-	}
-	if code >= 10 {
-		digit := inColorCode / 10
-		buf[sz] = '0' + digit
-		sz++
-		code -= digit * 10
-	}
-	buf[sz] = '0' + code
+    {
+        if code >= 100 {
+            digit := '0' + code/100
+            buf[sz] = digit
+            sz++
+            code -= digit * 100
+        }
+        if code >= 10 {
+            digit := code/10
+            buf[sz] = '0' + digit
+            sz++
+            code -= digit * 10
+        }
+        buf[sz] = '0' + code
+        sz++
+    }
 
-	buf[sz+1] = 'm'
-	sz += 2
+	buf[sz] = 'm'
+	sz++
 
 	return sz
 }
 
+// https://misc.flogisoft.com/bash/tip_colors_and_formatting
 const (
-	noColor      = 0
+	resetColor   = byte(0)
 	bold         = 1
 	dim          = 2
 	underline    = 3

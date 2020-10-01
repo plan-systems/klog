@@ -51,23 +51,23 @@ type FmtConstWidth struct {
 
 // FormatHeader -- see interface Formatter
 func (f *FmtConstWidth) FormatHeader(sevChar byte, file string, line int, buf *bytes.Buffer) {
-    var (
+	var (
 		tmp [64]byte
 	)
 	sz := 0
 
 	usingColor := f.UseColor
 	if usingColor {
-        var fg byte
+		var fg byte
 		switch sevChar {
-        case 'W':
-            fg = yellow
+		case 'W':
+			fg = StdWarnColor
 		case 'E', 'F':
-            fg = lightRed
+			fg = StdErrColor
 		default:
-            fg = dim
+			fg = StdInfoColor
 		}
-        sz += AppendColorCode(fg, tmp[sz:])
+		sz += AppendColorCode(fg, tmp[sz:])
 	}
 
 	tmp[sz] = sevChar
@@ -100,15 +100,14 @@ func (f *FmtConstWidth) FormatHeader(sevChar byte, file string, line int, buf *b
 			sz += AppendDigits(line, tmp[sz:])
 		}
 	}
-    tmp[sz] = '|'
-    sz++
-
+	tmp[sz] = '|'
+	sz++
 
 	if usingColor {
 		sz += AppendColorCode(resetColor, tmp[sz:])
-    }
-    tmp[sz] = ' '
-    sz++
+	}
+	tmp[sz] = ' '
+	sz++
 
 	buf.Write(tmp[:sz])
 }
@@ -183,31 +182,37 @@ func AppendNDigits(inNumDigits int, inValue int, buf []byte, inPad byte) int {
 	return inNumDigits
 }
 
-
-
-// AppendColorCode appends the console color code to the given slice,
-// returning how many bytes were appended.
+// AppendColorCode appends the console color code to the given slice.
+// Returns how many bytes were appended.
+// https://misc.flogisoft.com/bash/tip_colors_and_formatting
 func AppendColorCode(code byte, buf []byte) int {
 	buf[0] = '\x1b'
 	buf[1] = '['
-	sz := 2
+	buf[2] = '3'
+	buf[3] = '8'
+	buf[4] = ';'
+	buf[5] = '5'
+	buf[6] = ';'
+	sz := 7
 
-    {
-        if code >= 100 {
-            digit := '0' + code/100
-            buf[sz] = digit
-            sz++
-            code -= digit * 100
-        }
-        if code >= 10 {
-            digit := code/10
-            buf[sz] = '0' + digit
-            sz++
-            code -= digit * 10
-        }
-        buf[sz] = '0' + code
-        sz++
-    }
+	{
+		var digits [4]byte
+		numDigits := 0
+		for {
+			digit := code % 10
+			digits[numDigits] = '0' + digit
+			numDigits++
+			code -= digit
+			if code == 0 {
+				break
+			}
+			code /= 10
+		}
+		for i := int32(numDigits - 1); i >= 0; i-- {
+			buf[sz] = digits[i]
+			sz++
+		}
+	}
 
 	buf[sz] = 'm'
 	sz++
@@ -215,7 +220,7 @@ func AppendColorCode(code byte, buf []byte) int {
 	return sz
 }
 
-// https://misc.flogisoft.com/bash/tip_colors_and_formatting
+// ANSI color codes
 const (
 	resetColor   = byte(0)
 	bold         = 1
@@ -237,4 +242,11 @@ const (
 	lightBlue    = 94
 	lightMagenta = 95
 	lightCyan    = 96
+)
+
+// 256 color palette mode
+const (
+	StdInfoColor byte = 139
+	StdErrColor       = 196
+	StdWarnColor      = 166
 )
